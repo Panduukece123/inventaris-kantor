@@ -68,3 +68,8 @@ pytest -v
 ```
 
 Test memakai `FakeDatabase` in-memory (lihat `tests/conftest.py`), jadi tidak butuh koneksi MySQL nyata.
+
+
+Note :  Terdapat bug pada status peminjaman yang tidak otomatis berubah menjadi "dikembalikan" saat barang dikembalikan. Perlu perbaikan di logika pengembalian barang.
+Terkadang log status ketika meminjam barang tidak tercatat di tabel `activity_logs`. Perlu peninjauan pada bagian logging aktivitas peminjaman.
+ dan ketika pinjam terkadang muncul false
