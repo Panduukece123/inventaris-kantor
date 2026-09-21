@@ -228,10 +228,68 @@ class InventorySystem:
         )
         return {row["status_pinjam"]: row["jumlah"] for row in rows}
 
+    def list_loans(self):
+        """Daftar peminjaman lengkap dengan id, dipakai buat cari loan_id."""
+        return self.db.query_all(
+            "SELECT id, user_id, item_id, tanggal_pinjam, tanggal_kembali, status_pinjam "
+            "FROM loans ORDER BY id"
+        )
+
     def get_activity_logs(self, user_id: int, limit: int = 50):
         self._require_role(user_id, {ROLE_ADMIN})
         return self.db.query_all(
             "SELECT * FROM activity_logs ORDER BY waktu DESC LIMIT %s", (limit,)
+        )
+
+
+def _ajukan_pinjam(system: InventorySystem, user_id: int):
+    """Ajukan pinjam + jelaskan alasan kalau gagal (bukan cuma False)."""
+    item_id = int(input("ID barang yang dipinjam: "))
+    if system.process_loan_request(user_id, item_id):
+        print("Berhasil: pengajuan pinjam dibuat, status Pending.")
+        return
+
+    item = system.get_item_status(item_id)
+    if not item:
+        print(f"Gagal: barang id={item_id} tidak ditemukan.")
+    elif item["status"] != "Tersedia":
+        print(f"Gagal: barang id={item_id} berstatus '{item['status']}', bukan 'Tersedia'.")
+    else:
+        print(f"Gagal: barang id={item_id} sudah punya pengajuan pinjam yang belum selesai.")
+
+
+def _proses_loan(fungsi, system: InventorySystem, user_id: int, kata_kerja: str, status_disyaratkan: str):
+    """Approve/reject loan + jelaskan alasan kalau gagal."""
+    loan_id = int(input("ID peminjaman (loan_id, lihat menu 3): "))
+    if fungsi(user_id, loan_id):
+        print(f"Berhasil: peminjaman id={loan_id} {kata_kerja}.")
+        return
+
+    loan = system.db.query("SELECT status_pinjam FROM loans WHERE id = %s", (loan_id,))
+    if not loan:
+        print(f"Gagal: peminjaman id={loan_id} tidak ditemukan.")
+    else:
+        print(
+            f"Gagal: peminjaman id={loan_id} berstatus '{loan['status_pinjam']}', "
+            f"harus '{status_disyaratkan}' dulu untuk bisa diproses."
+        )
+
+
+def _kembalikan_barang(system: InventorySystem, user_id: int):
+    """Proses pengembalian + jelaskan alasan kalau gagal."""
+    loan_id = int(input("ID peminjaman (loan_id, lihat menu 3): "))
+    kondisi = input("Kondisi barang (Tersedia/Rusak) [Tersedia]: ") or "Tersedia"
+    if system.return_loan(user_id, loan_id, kondisi):
+        print(f"Berhasil: peminjaman id={loan_id} dikembalikan, barang jadi '{kondisi}'.")
+        return
+
+    loan = system.db.query("SELECT status_pinjam FROM loans WHERE id = %s", (loan_id,))
+    if not loan:
+        print(f"Gagal: peminjaman id={loan_id} tidak ditemukan.")
+    else:
+        print(
+            f"Gagal: peminjaman id={loan_id} berstatus '{loan['status_pinjam']}', "
+            "harus 'Disetujui' dulu sebelum bisa dikembalikan."
         )
 
 
@@ -252,19 +310,14 @@ def _run_cli():  # pragma: no cover - demo interaktif, tidak dites otomatis
     aksi = {
         "1": lambda: print(system.search_item()),
         "2": lambda: print(system.get_inventory_recap()),
-        "3": lambda: print(system.get_loan_recap()),
+        "3": lambda: (print(system.get_loan_recap()), print(system.list_loans())),
         "4": lambda: print(system.add_item(
             user_id, input("Kode barang: "), input("Nama barang: ")
         )),
-        "5": lambda: print(system.process_loan_request(
-            user_id, int(input("ID barang yang dipinjam: "))
-        )),
-        "6": lambda: print(system.approve_loan(user_id, int(input("ID peminjaman: ")))),
-        "7": lambda: print(system.reject_loan(user_id, int(input("ID peminjaman: ")))),
-        "8": lambda: print(system.return_loan(
-            user_id, int(input("ID peminjaman: ")),
-            input("Kondisi barang (Tersedia/Rusak) [Tersedia]: ") or "Tersedia",
-        )),
+        "5": lambda: _ajukan_pinjam(system, user_id),
+        "6": lambda: _proses_loan(system.approve_loan, system, user_id, "disetujui", "Pending"),
+        "7": lambda: _proses_loan(system.reject_loan, system, user_id, "ditolak", "Pending"),
+        "8": lambda: _kembalikan_barang(system, user_id),
         "9": lambda: print(system.get_activity_logs(user_id)),
     }
     menu_teks = (

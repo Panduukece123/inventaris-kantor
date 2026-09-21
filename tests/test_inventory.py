@@ -136,6 +136,14 @@ class TestLaporan:
         system.process_loan_request(user_id=1, item_id=1)
         assert system.get_loan_recap() == {"Pending": 1}
 
+    def test_list_loans_tampilkan_loan_id(self, system):
+        system.process_loan_request(user_id=1, item_id=1)
+        hasil = system.list_loans()
+        assert hasil == [
+            {"id": 1, "user_id": 1, "item_id": 1, "tanggal_pinjam": "2024-01-01",
+             "tanggal_kembali": None, "status_pinjam": "Pending"}
+        ]
+
     def test_get_activity_logs_hanya_admin(self, system):
         system.add_item(user_id=2, kode_barang="INV-003", nama_barang="Meja")
         logs = system.get_activity_logs(user_id=3)

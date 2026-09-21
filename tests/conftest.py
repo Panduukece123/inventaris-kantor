@@ -80,6 +80,9 @@ class FakeDatabase:
         if sql_norm == "SELECT status_pinjam, COUNT(*) AS jumlah FROM loans GROUP BY status_pinjam":
             return self._group_count(self.tables["loans"], "status_pinjam")
 
+        if sql_norm == "SELECT id, user_id, item_id, tanggal_pinjam, tanggal_kembali, status_pinjam FROM loans ORDER BY id":
+            return [dict(r) for r in sorted(self.tables["loans"], key=lambda r: r["id"])]
+
         if sql_norm == "SELECT * FROM activity_logs ORDER BY waktu DESC LIMIT %s":
             return list(reversed(self.tables["activity_logs"]))[: params[0]]
 
@@ -140,6 +143,8 @@ class FakeDatabase:
                 row[col] = val.strip("'")
         if table == "items":
             row.setdefault("status", "Tersedia")
+        if table == "loans":
+            row.setdefault("tanggal_kembali", None)
         self._ids[table] += 1
         row["id"] = self._ids[table]
         self.tables[table].append(row)
